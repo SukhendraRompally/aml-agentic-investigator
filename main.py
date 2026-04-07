@@ -88,16 +88,22 @@ def _run_pipeline():
             key = (flagged.loc[idx, "nameOrig"], flagged.loc[idx, "amount"])
             gt_lookup[key] = int(ground_truth.loc[idx])
 
+        # ── Compute TN and FN baseline from unflagged transactions ───────────
+        # Transactions triage passed over entirely: if actually clean → TN, if fraud → FN
+        unflagged_gt = ground_truth[~ground_truth.index.isin(flagged.index)]
+        tn_baseline = int((unflagged_gt == 0).sum())   # correctly not flagged
+        fn_baseline = int((unflagged_gt == 1).sum())   # fraud that triage missed
+
         _state["progress_total"] = len(flagged)
         _state["step"] = 2
         _state["step_label"] = "LLM Investigation + SAR Drafting"
 
-        # Reset cumulative scoreboard
+        # Seed scoreboard with baseline TN/FN — these don't change as LLM runs
         _state["cumulative"] = {
             "true_positives": 0,
             "false_positives": 0,
-            "false_negatives": 0,
-            "true_negatives": 0,
+            "false_negatives": fn_baseline,    # triage misses count as FN from the start
+            "true_negatives": tn_baseline,     # unflagged clean = correctly ignored
             "precision": None,
             "recall": None,
             "sars_generated": 0,
@@ -148,6 +154,8 @@ def _run_pipeline():
                 "nameOrig": txn.get("nameOrig"),
                 "amount": txn.get("amount"),
                 "type": txn.get("type"),
+                "rule": txn.get("rule"),
+                "flag_reason": txn.get("flag_reason"),
                 "ai_decision": investigation["ai_decision"],
                 "risk_level": investigation["risk_level"],
                 "pattern_type": investigation["pattern_type"],
@@ -173,6 +181,22 @@ def _run_pipeline():
         _state["step_label"] = "Complete"
 
         metrics = compute_metrics(flagged, all_results, ground_truth)
+
+        # Override TN and FN with cumulative values — compute_metrics only sees flagged
+        # transactions, so it misses the 78 unflagged-clean (TN) and 8 unflagged-fraud (FN)
+        # that were seeded into the scoreboard at triage time.
+        c = _state["cumulative"]
+        metrics["true_negatives"] = c["true_negatives"]
+        metrics["false_negatives"] = c["false_negatives"]
+
+        # Recompute recall with the corrected FN
+        tp = metrics["true_positives"]
+        fn = metrics["false_negatives"]
+        fp = metrics["false_positives"]
+        metrics["recall"] = round(tp / (tp + fn), 3) if (tp + fn) > 0 else 0.0
+        metrics["f1"] = round(
+            2 * metrics["precision"] * metrics["recall"] / (metrics["precision"] + metrics["recall"]), 3
+        ) if (metrics["precision"] + metrics["recall"]) > 0 else 0.0
 
         sars = [
             {"txn": r["txn"], **r["sar"]}

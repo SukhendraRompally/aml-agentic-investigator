@@ -31,13 +31,13 @@ def compute_metrics(
         inv = r["investigation"]
         sar = r["sar"]
 
-        # Match back to ground truth by nameOrig + amount
+        # Match back to ground truth via flagged_df index (shares index with blind_df/ground_truth)
         orig = txn.get("nameOrig")
         amount = txn.get("amount")
-        matches = ground_truth[
+        idx = flagged_df.index[
             (flagged_df["nameOrig"] == orig) & (flagged_df["amount"] == amount)
         ]
-        actual_fraud = int(matches.iloc[0]) if len(matches) > 0 else 0
+        actual_fraud = int(ground_truth.loc[idx[0]]) if len(idx) > 0 else 0
 
         records.append({
             "nameOrig": orig,

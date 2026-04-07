@@ -1,6 +1,8 @@
 # Schwab AI.x — AML Agentic Investigator
 
-A prototype that demonstrates how Generative AI shifts Anti-Money Laundering operations from **rigid rule-based alerts** to **agentic risk reasoning**. Built for Schwab's AI.x team as a proof-of-concept for the Risk organization.
+A prototype demonstrating how Generative AI shifts Anti-Money Laundering operations from **rigid rule-based alerts** to **agentic risk reasoning**. Built for Schwab's AI.x team as a proof-of-concept for the Risk organization.
+
+**Live demo:** [aml-agent.replit.app](https://aml-agent.replit.app)
 
 ---
 
@@ -17,13 +19,13 @@ Traditional rule-based systems flag transactions by static thresholds (e.g. `amo
 A 4-step agentic pipeline that mirrors how a real AML investigator thinks:
 
 ```
-Step 1: Behavioral Triage     → Intent-based flagging (not just dollar amounts)
-Step 2: LLM Investigation     → Blind AI analysis of each flagged transaction
-Step 3: SAR Drafting          → Structured report generated for suspicious cases
-Step 4: Validation Reveal     → AI decisions scored against ground truth (live)
+Step 1: Behavioral Triage     → 5 intent-based rules across 4 AML typologies
+Step 2: LLM Investigation     → Blind GPT-4.1 analysis per flagged transaction
+Step 3: SAR Drafting          → Structured FinCEN-format report for SUSPICIOUS cases
+Step 4: Validation Reveal     → Live TP/FP/FN/TN scored against hidden ground truth
 ```
 
-Each step updates a **live cumulative scoreboard** (Precision, Recall, TP/FP/FN/TN) as transactions are processed — not just at the end.
+The scoreboard updates **after every single transaction** — not just at the end — so you can watch precision and recall build in real time.
 
 ---
 
@@ -36,21 +38,21 @@ Each step updates a **live cumulative scoreboard** (Precision, Recall, TP/FP/FN/
 │                                 │  HTTP  │                          │
 │  • Progress bar                 │        │  triage.py               │
 │  • Live TP/FP/FN/TN scoreboard  │        │  investigator.py         │
-│  • Transaction feed             │        │  validation.py           │
+│  • Transaction feed w/ verdicts │        │  validation.py           │
 │  • SAR viewer                   │        │  main.py                 │
 └─────────────────────────────────┘        └────────────┬─────────────┘
                                                         │
                                            ┌────────────▼─────────────┐
                                            │   Azure OpenAI (GPT-4.1) │
                                            │   2 calls per transaction │
-                                           │   1. Investigate          │
+                                           │   1. Investigate (blind)  │
                                            │   2. Draft SAR            │
                                            └──────────────────────────┘
 ```
 
-**Backend** runs on an Azure VM, exposing a CORS-open REST API.
-**Frontend** runs on Replit, polling the backend for live updates.
-**LLM** runs on Azure OpenAI (GPT-4.1) — no isFraud label is shown to the model (blind test).
+**Backend** — FastAPI on an Azure VM, CORS-open REST API.
+**Frontend** — Replit, polls the backend every 2 seconds for live updates.
+**LLM** — Azure OpenAI GPT-4.1. The `isFraud` label is never shown to the model (genuine blind test).
 
 ---
 
@@ -58,19 +60,19 @@ Each step updates a **live cumulative scoreboard** (Precision, Recall, TP/FP/FN/
 
 **PaySim Synthetic Financial Dataset** — [Kaggle: ealaxi/paysim1](https://www.kaggle.com/datasets/ealaxi/paysim1)
 
-PaySim simulates mobile money transactions based on real anonymized data from a mobile money service. It includes labeled fraud (`isFraud`) used only for validation — never shown to the LLM.
+PaySim simulates mobile money transactions based on real anonymized data. It includes a labeled `isFraud` column used **only for validation** — never shown to the LLM.
 
 | Field | Description |
 |---|---|
 | `type` | CASH_IN, CASH_OUT, DEBIT, PAYMENT, TRANSFER |
 | `amount` | Transaction amount |
 | `nameOrig` | Origin account ID |
-| `oldbalanceOrg` / `newbalanceOrig` | Origin account balance before/after |
+| `oldbalanceOrg` / `newbalanceOrig` | Origin balance before/after |
 | `nameDest` | Destination account ID |
 | `oldbalanceDest` / `newbalanceDest` | Destination balance before/after |
 | `isFraud` | Ground truth label (hidden from LLM) |
 
-The pipeline samples **100 rows** with at least 20 fraud cases guaranteed via stratified sampling.
+The pipeline samples **100 rows** with at least 20 fraud cases guaranteed via stratified sampling across all transaction types.
 
 ---
 
@@ -78,61 +80,81 @@ The pipeline samples **100 rows** with at least 20 fraud cases guaranteed via st
 
 ### Step 1 — Behavioral Triage
 
-Instead of a static dollar threshold, we flag transactions based on **intent signals**:
+Five rules detect different AML typologies. Each contributes a capped number of samples to ensure variety across the flagged set:
 
-```python
-type in ('TRANSFER', 'CASH_OUT')     # High-risk transaction types
-AND amount > 0.9 * oldbalanceOrg     # Draining >90% of origin account
-AND newbalanceDest == 0              # Destination account completely cleared
-```
+| Rule | Typology | Condition | Cap | Precision |
+|---|---|---|---|---|
+| `ACCOUNT_DRAINING` | Layering / Pass-Through | TRANSFER or CASH_OUT draining >90% of origin, destination zeroed | 5 | ~100% |
+| `LARGE_TRANSFER` | Wire Fraud / Large-Scale Layering | TRANSFER ≥$500k clearing both origin and destination to $0 | 5 | ~89% |
+| `HIGH_VALUE_CASHOUT` | Cash Placement | CASH_OUT ≥$1M fully clearing origin account | 5 | ~82% |
+| `MID_TRANSFER_STRUCTURING` | Structuring | TRANSFER $50k–$500k clearing both accounts — below high-value monitoring thresholds | 5 | ~75% |
+| `MODERATE_CASHOUT` | Suspicious Withdrawal | CASH_OUT $200k–$999k clearing origin — intentionally broader to surface realistic FPs | 2 | ~30–40% |
 
-This catches **account-clearing behavior** — a primary pattern in layering and structuring schemes — that a simple `amount > $10,000` rule misses entirely.
+The last rule is **intentionally less precise** to produce 1–2 false positives, demonstrating that the system still requires human review.
+
+Each flagged transaction carries a `flag_reason` explaining which behavioral signal was detected. This is injected into the LLM prompt so it reasons about the specific pattern, not just a generic "suspicious transaction."
 
 ### Step 2 — LLM Investigation (Blind Test)
 
-Each flagged transaction is sent to GPT-4.1 with a **Senior AML Investigator persona**. The `isFraud` and `isFlaggedFraud` columns are stripped before the LLM sees any data — this is a genuine blind test.
+Each flagged transaction is sent to GPT-4.1 as a **Senior AML Investigator**. The `isFraud` and `isFlaggedFraud` columns are stripped — this is a genuine blind test.
 
-The model is asked to reason about:
-- Balance shift patterns (origin drained, destination zeroed)
-- Whether the amount and type combination suggests deliberate obfuscation
-- Which AML typology applies: Structuring, Layering, or Account Draining
+The model reasons about balance shift patterns, transaction type risk, and which AML typology applies:
 
-Output per transaction:
 ```json
 {
   "ai_decision": "SUSPICIOUS" | "LOW_RISK",
   "risk_level": "HIGH" | "MEDIUM" | "LOW",
-  "behavioral_reasoning": "The origin account held $82,400 and was drained to zero...",
-  "pattern_type": "Account Draining"
+  "behavioral_reasoning": "The origin account was completely drained in a single TRANSFER...",
+  "pattern_type": "Layering" | "Structuring" | "Account Draining" | "Cash Placement"
 }
 ```
 
 ### Step 3 — SAR Drafting
 
-If the LLM decides `SUSPICIOUS`, a second LLM call generates a structured Suspicious Activity Report following **FinCEN's who/what/when/where/why/how** narrative structure:
+For every `SUSPICIOUS` decision, a second LLM call drafts a Suspicious Activity Report following **FinCEN's who/what/when/where/why/how** narrative structure:
 
 ```json
 {
   "subject_id": "C1234567890",
-  "narrative_of_suspicion": "On step 187 of the simulation, account C1234567890 initiated a TRANSFER of $82,400.00, representing 98.3% of its prior balance of $83,890.12. The destination account recorded a post-transaction balance of $0.00, consistent with a pass-through or mule account used to layer illicit funds...",
+  "narrative_of_suspicion": "Account C1234567890 initiated a TRANSFER of $273,821.76 that fully cleared the origin balance to $0. The destination account also recorded a post-transaction balance of $0, consistent with a pass-through account used to layer illicit funds...",
   "risk_level": "HIGH",
-  "suspicious_activity_type": "Account Draining / Layering",
+  "suspicious_activity_type": "Structuring / Below-Threshold Layering",
   "recommended_action": "File SAR with FinCEN. Freeze account pending review. Notify BSA Officer."
 }
 ```
 
 ### Step 4 — Validation (The Reveal)
 
-After each transaction is processed, the AI decision is immediately scored against the hidden `isFraud` ground truth:
+After each LLM decision, the result is immediately scored against the hidden `isFraud` ground truth and added to a live cumulative scoreboard.
 
-| Verdict | Meaning |
-|---|---|
-| **TP** | AI said SUSPICIOUS — actually fraud |
-| **FP** | AI said SUSPICIOUS — actually clean |
-| **FN** | AI said LOW_RISK — actually fraud |
-| **TN** | AI said LOW_RISK — actually clean |
+**The full 2×2 confusion matrix accounts for all 100 sampled transactions:**
 
-Running **Precision** and **Recall** update live as the pipeline progresses. At completion, the full breakdown including False Positive and False Negative details (with the AI's own reasoning) is surfaced — showing exactly where and why the model was wrong.
+```
+                     Actually Fraud    Actually Clean
+  AI: SUSPICIOUS          TP                FP       ← flagged + LLM positive
+  AI: LOW_RISK            FN                TN       ← flagged + LLM negative
+  Not flagged (fraud)     FN baseline       —        ← triage missed these
+  Not flagged (clean)     —                 TN baseline ← correctly ignored
+```
+
+- **TN baseline** (~78): Unflagged transactions that are actually clean — seeded at triage time, before LLM runs
+- **FN baseline** (~8): Fraud transactions triage missed entirely — surfaces the blind spots in the rules
+- **FP** (~2): Transactions the AI flagged as suspicious but are actually clean — the `MODERATE_CASHOUT` rule deliberately produces these
+- **TP** (~12): Correctly identified fraud
+
+Typical run results: **Precision ~86%, Recall ~60%, F1 ~71%**
+
+---
+
+## Confusion Matrix Explained
+
+| Metric | Formula | AML Meaning |
+|---|---|---|
+| **Precision** | TP / (TP + FP) | When AI raises an alarm, how often is it right? |
+| **Recall** | TP / (TP + FN) | Of all real fraud, how much did we catch? |
+| **F1** | 2 × P × R / (P + R) | Balanced score — punishes if either metric is low |
+
+In AML, **Recall is typically prioritized** — missing fraud is worse than a false alarm. But low precision causes analyst fatigue. This system makes that trade-off explicit and visible.
 
 ---
 
@@ -143,35 +165,51 @@ Base URL: `http://<VM_IP>:8005`
 | Method | Endpoint | Description |
 |---|---|---|
 | `GET` | `/health` | Health check |
-| `POST` | `/pipeline/run-async` | Start pipeline in background |
-| `GET` | `/pipeline/status` | Poll for progress + live scoreboard |
-| `GET` | `/pipeline/results` | Full results once complete |
+| `POST` | `/pipeline/run-async` | Start pipeline in background, returns immediately |
+| `GET` | `/pipeline/status` | Poll every 2s — returns live scoreboard + per-transaction feed |
+| `GET` | `/pipeline/results` | Full results once `status === "done"` |
 | `GET` | `/pipeline/sars` | SAR list only |
-| `GET` | `/pipeline/validation` | Final metrics only |
+| `GET` | `/pipeline/validation` | Final precision/recall/F1 + FP/FN details |
 
-### `/pipeline/status` — Live Scoreboard
-
-Poll every 2 seconds. The `cumulative` object updates after every transaction:
+### `/pipeline/status` response shape
 
 ```json
 {
   "status": "running",
   "step": 2,
   "step_label": "LLM Investigation + SAR Drafting",
-  "progress": 12,
-  "progress_total": 23,
+  "progress": 8,
+  "progress_total": 14,
   "cumulative": {
-    "true_positives": 8,
-    "false_positives": 3,
-    "false_negatives": 1,
-    "true_negatives": 0,
-    "precision": 0.727,
-    "recall": 0.889,
-    "sars_generated": 8,
-    "completed_transactions": [ ... ]
+    "true_positives": 7,
+    "false_positives": 0,
+    "false_negatives": 8,
+    "true_negatives": 78,
+    "precision": 1.0,
+    "recall": 0.467,
+    "sars_generated": 7,
+    "completed_transactions": [
+      {
+        "nameOrig": "C1515790640",
+        "amount": 1390332.39,
+        "type": "CASH_OUT",
+        "rule": "HIGH_VALUE_CASHOUT",
+        "flag_reason": "CASH_OUT of $1390332.39 (≥$1M) fully cleared origin...",
+        "ai_decision": "SUSPICIOUS",
+        "risk_level": "HIGH",
+        "pattern_type": "Account Draining",
+        "behavioral_reasoning": "The origin account was completely drained...",
+        "actual_fraud": 1,
+        "verdict": "TP",
+        "has_sar": true,
+        "sar_report_id": "SAR-20260407-68B0C3"
+      }
+    ]
   }
 }
 ```
+
+**Note:** `true_negatives` and `false_negatives` are seeded from unflagged transactions at triage time, so they are non-zero from the very first poll.
 
 ---
 
@@ -179,15 +217,15 @@ Poll every 2 seconds. The `cumulative` object updates after every transaction:
 
 ```
 aml_agent/
-├── main.py              # FastAPI app — pipeline orchestration + all endpoints
-├── triage.py            # Behavioral triage: intent-based transaction flagging
-├── investigator.py      # LLM investigation (GPT-4.1) + SAR drafting
-├── validation.py        # Precision/recall + FP/FN breakdown
-├── setup_data.py        # One-time Kaggle dataset download
+├── main.py           # FastAPI — pipeline orchestration, all endpoints, live scoreboard
+├── triage.py         # 5 behavioral triage rules across 4 AML typologies
+├── investigator.py   # LLM investigation (GPT-4.1 blind test) + SAR drafting
+├── validation.py     # Precision/recall/F1 + FP/FN breakdown with AI reasoning
+├── setup_data.py     # One-time Kaggle dataset download
 ├── requirements.txt
-├── start.sh
+├── start.sh          # uvicorn main:app --host 0.0.0.0 --port 8005
 └── data/
-    └── PS_*.csv         # PaySim dataset (downloaded via setup_data.py)
+    └── PS_*.csv      # PaySim dataset (downloaded via setup_data.py, gitignored)
 ```
 
 ---
@@ -202,8 +240,8 @@ aml_agent/
 ### 1. Clone and install
 
 ```bash
-git clone <repo-url>
-cd aml_agent
+git clone https://github.com/SukhendraRompally/schwab-aml-agentic-investigator.git
+cd schwab-aml-agentic-investigator
 python3 -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
@@ -226,32 +264,37 @@ KAGGLE_KEY=your_kaggle_api_key
 
 ```bash
 python setup_data.py
+# Downloads PaySim CSV (~470MB) into data/
 ```
-
-Downloads the PaySim CSV (~470MB) from Kaggle into `data/`.
 
 ### 4. Start the backend
 
 ```bash
 ./start.sh
-# Server running at http://0.0.0.0:8005
+# API live at http://0.0.0.0:8005
 ```
 
 ### 5. Connect the frontend
 
-Point your Replit (or any) frontend at `http://<your-server-ip>:8005`. The API is CORS-open.
+Point your frontend at `http://<your-server-ip>:8005`. The API is CORS-open for all origins.
 
 ---
 
 ## Key Design Decisions
 
-**Rules first, LLM second.** The triage step uses deterministic, auditable logic to pre-filter transactions. The LLM only engages on flagged cases — this bounds cost and keeps the AI's role explainable to regulators. *"We don't let AI decide; we use AI to explain what the rules detected."*
+**Rules first, LLM second.** Triage uses deterministic, auditable logic to pre-filter transactions. The LLM only engages on flagged cases — bounding cost and keeping the AI's role explainable to regulators. *"We don't let AI decide; we use AI to explain what the rules detected."*
 
-**Blind test design.** The ground truth label is never shown to the LLM. This forces genuine behavioral reasoning rather than label regurgitation, and makes the validation reveal meaningful.
+**Five rules, four typologies.** Each rule carries a distinct `flag_reason` injected into the LLM prompt, ensuring the model reasons about different patterns (cash placement vs. structuring vs. wire fraud) rather than returning the same answer every time.
 
-**Two LLM calls per suspicious transaction.** Investigation (reasoning) is separated from SAR drafting (output). This produces better narratives and avoids generating paperwork for low-risk transactions.
+**One intentional FP rule.** `MODERATE_CASHOUT` is deliberately broader (~30–40% precision, 2 samples max). This produces 1–2 false positives per run, demonstrating that the system still requires human judgment and is not a black box.
 
-**Live cumulative scoring.** Rather than waiting until all transactions are processed, the scoreboard updates in real-time. This makes the demo interactive and shows the model "learning" its own limitations as it goes.
+**Full 2×2 confusion matrix.** TN and FN are seeded from unflagged transactions at triage time — not just from what the LLM saw. This surfaces the triage system's blind spots (FN baseline ~8) and gives an honest picture of recall across all 100 sampled rows.
+
+**Blind test design.** `isFraud` and `isFlaggedFraud` are stripped before any LLM call. The validation reveal compares AI reasoning against ground truth the model never saw — making precision and recall meaningful.
+
+**Two LLM calls per suspicious transaction.** Investigation (reasoning) is separated from SAR drafting (document). This produces better narratives and avoids generating paperwork for low-risk transactions.
+
+**Async pipeline + polling.** LLM calls for ~14 transactions take 30–60 seconds. An async background task + 2-second polling keeps the UI responsive and shows real-time progress.
 
 ---
 
@@ -259,11 +302,12 @@ Point your Replit (or any) frontend at `http://<your-server-ip>:8005`. The API i
 
 | Limitation | Notes |
 |---|---|
-| PaySim is mobile money, not bank wire transfers | Structuring/layering patterns still apply but channel context differs from Schwab's actual data |
-| LLM thresholds not calibrated | Precision/recall numbers are illustrative; production tuning requires labeled historical data |
-| No OFAC / PEP identity resolution | Production AML requires cross-referencing watchlists and KYC profiles |
-| Stateless pipeline | Results reset on server restart; production needs a database with 5-year SAR retention (SOX) |
-| Sequential LLM calls | ~23 transactions × ~2s each ≈ 60–90 seconds total; production would parallelize with rate-limit management |
+| PaySim is mobile money, not bank wire transfers | Structuring/layering typologies still apply but channel context differs from Schwab's actual transaction data |
+| Triage rules calibrated to PaySim's fraud signature | All PaySim fraud has `newbalanceOrig == 0`; rules exploit this — real-world rules would need different calibration |
+| ~8 fraud cases missed per run (FN baseline) | Transactions that don't match any rule pattern; surfaces the need for iterative rule refinement |
+| No OFAC / PEP identity resolution | Production AML requires cross-referencing watchlists and customer KYC profiles |
+| Stateless pipeline | Results reset on server restart; production needs a database with 5-year SAR retention (SOX compliance) |
+| Sequential LLM calls | ~14 transactions × ~2–3s each ≈ 30–60s runtime; production would parallelize with rate-limit management |
 
 ---
 
@@ -273,4 +317,4 @@ Point your Replit (or any) frontend at `http://<your-server-ip>:8005`. The API i
 - [Azure OpenAI (GPT-4.1)](https://azure.microsoft.com/en-us/products/ai-services/openai-service) — LLM investigation + SAR drafting
 - [PaySim](https://www.kaggle.com/datasets/ealaxi/paysim1) — Synthetic financial transaction dataset
 - [Pandas](https://pandas.pydata.org/) — Data processing and validation metrics
-- Replit — Frontend hosting
+- [Replit](https://replit.com) — Frontend hosting
