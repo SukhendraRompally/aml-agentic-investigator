@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import type { AlertDetail } from "@workspace/api-client-react";
 import { useRevealGroundTruth } from "@workspace/api-client-react";
 import { DEMO_MODE } from "@/config";
@@ -37,7 +37,10 @@ const MOCK_GROUND_TRUTHS: Record<string, boolean> = {
   "ALT-008": false,
 };
 
-let mockEvaluationHistory: Array<{ isFraud: boolean; aiDecision: string }> = [];
+const mockEvaluationHistory = new Map<
+  string,
+  { isFraud: boolean; aiDecision: string }
+>();
 
 function computeMockGroundTruth(alertId: string, detail: AlertDetail): MockGroundTruth {
   const isFraud = MOCK_GROUND_TRUTHS[alertId] ?? false;
@@ -46,19 +49,12 @@ function computeMockGroundTruth(alertId: string, detail: AlertDetail): MockGroun
     | "BENIGN"
     | "REVIEW_NEEDED";
 
-  if (!mockEvaluationHistory.find((e) => e.aiDecision === aiDecision && e.isFraud === isFraud)) {
-    mockEvaluationHistory.push({ isFraud, aiDecision });
-  }
+  mockEvaluationHistory.set(alertId, { isFraud, aiDecision });
 
-  const tp = mockEvaluationHistory.filter(
-    (e) => e.isFraud && e.aiDecision === "SUSPICIOUS"
-  ).length;
-  const fp = mockEvaluationHistory.filter(
-    (e) => !e.isFraud && e.aiDecision === "SUSPICIOUS"
-  ).length;
-  const fn = mockEvaluationHistory.filter(
-    (e) => e.isFraud && e.aiDecision !== "SUSPICIOUS"
-  ).length;
+  const entries = Array.from(mockEvaluationHistory.values());
+  const tp = entries.filter((e) => e.isFraud && e.aiDecision === "SUSPICIOUS").length;
+  const fp = entries.filter((e) => !e.isFraud && e.aiDecision === "SUSPICIOUS").length;
+  const fn = entries.filter((e) => e.isFraud && e.aiDecision !== "SUSPICIOUS").length;
 
   const precision = tp + fp > 0 ? tp / (tp + fp) : 1;
   const recall = tp + fn > 0 ? tp / (tp + fn) : 1;
@@ -75,7 +71,7 @@ function computeMockGroundTruth(alertId: string, detail: AlertDetail): MockGroun
     precision,
     recall,
     f1Score,
-    totalEvaluated: mockEvaluationHistory.length,
+    totalEvaluated: mockEvaluationHistory.size,
     truePositives: tp,
     falsePositives: fp,
     falseNegatives: fn,
@@ -107,6 +103,12 @@ export function ValidationStep({ alertId, detail, isLoading }: ValidationStepPro
   const [mockResult, setMockResult] = useState<MockGroundTruth | null>(null);
 
   const revealMutation = useRevealGroundTruth();
+
+  useEffect(() => {
+    setRevealed(false);
+    setMockResult(null);
+    revealMutation.reset();
+  }, [alertId]);
 
   const handleReveal = async () => {
     if (!alertId) return;
@@ -186,7 +188,7 @@ export function ValidationStep({ alertId, detail, isLoading }: ValidationStepPro
         ) : (
           <div className="flex items-center gap-2 text-sm text-green-600 font-medium">
             <Unlock className="h-4 w-4" />
-            Ground truth revealed
+            Ground truth revealed for {alertId}
           </div>
         )}
       </div>
