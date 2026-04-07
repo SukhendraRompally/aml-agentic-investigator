@@ -1,13 +1,14 @@
-import { useState, useEffect } from "react";
-import { Link } from "wouter";
-import { useListAlerts } from "@workspace/api-client-react";
+import {
+  useListAlerts,
+  getListAlertsQueryKey,
+} from "@workspace/api-client-react";
+import type { Alert } from "@workspace/api-client-react";
 import { DEMO_MODE } from "@/config";
 import { mockAlerts } from "@/mockData";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
 import { AlertCircle, AlertTriangle, Info, Clock, ChevronRight } from "lucide-react";
-import type { Alert } from "@workspace/api-client-react/src/generated/api.schemas";
 
 interface SidebarProps {
   selectedAlertId: string | null;
@@ -15,8 +16,13 @@ interface SidebarProps {
 }
 
 export function Sidebar({ selectedAlertId, onSelectAlert }: SidebarProps) {
-  const { data, isLoading, isError } = useListAlerts({ query: { enabled: !DEMO_MODE } });
-  
+  const { data, isLoading, isError } = useListAlerts({
+    query: {
+      enabled: !DEMO_MODE,
+      queryKey: getListAlertsQueryKey(),
+    },
+  });
+
   const alerts = DEMO_MODE || isError ? mockAlerts : data?.alerts || [];
   const loading = !DEMO_MODE && isLoading;
 
@@ -66,8 +72,8 @@ export function Sidebar({ selectedAlertId, onSelectAlert }: SidebarProps) {
                 key={alert.alertId}
                 onClick={() => onSelectAlert(alert.alertId)}
                 className={`w-full text-left p-3 rounded-md border transition-all duration-200 hover-elevate ${
-                  selectedAlertId === alert.alertId 
-                    ? "border-primary bg-primary/5 shadow-sm" 
+                  selectedAlertId === alert.alertId
+                    ? "border-primary bg-primary/5 shadow-sm"
                     : "border-border bg-card hover:border-border/80"
                 }`}
                 data-testid={`alert-item-${alert.alertId}`}
@@ -81,16 +87,16 @@ export function Sidebar({ selectedAlertId, onSelectAlert }: SidebarProps) {
                     {alert.riskScore}
                   </span>
                 </div>
-                
+
                 <div className="font-medium text-sm text-foreground truncate mb-1">
                   {alert.accountName}
                 </div>
-                
+
                 <div className="flex items-center justify-between text-xs text-muted-foreground">
                   <span className="truncate mr-2 max-w-[120px]">{alert.primaryFlag.replace(/_/g, ' ')}</span>
                   <span className="font-mono">${alert.totalAmount.toLocaleString()}</span>
                 </div>
-                
+
                 <div className="mt-2 flex items-center justify-between">
                   <Badge variant="outline" className="text-[10px] h-5 px-1.5">
                     {alert.status}

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import type { AlertDetail } from "@workspace/api-client-react/src/generated/api.schemas";
+import type { AlertDetail } from "@workspace/api-client-react";
 import { useRevealGroundTruth } from "@workspace/api-client-react";
 import { DEMO_MODE } from "@/config";
 import { Button } from "@/components/ui/button";

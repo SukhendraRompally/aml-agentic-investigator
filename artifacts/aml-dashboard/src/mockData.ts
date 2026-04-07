@@ -1,4 +1,7 @@
-import type { Alert, AlertDetail, MetricsSummary } from "@workspace/api-client-react/src/generated/api.schemas";
+import type { Alert, AlertDetail, MetricsSummary } from "@workspace/api-client-react";
+
+const now = Date.now();
+const iso = (offset: number) => new Date(now - offset).toISOString();
 
 export const mockMetrics: MetricsSummary = {
   totalAlerts: 142,
@@ -19,7 +22,7 @@ export const mockAlerts: Alert[] = [
     primaryFlag: "ACCOUNT_CLEARING",
     status: "REVIEWING",
     totalAmount: 1250000,
-    createdAt: new Date(Date.now() - 1000 * 60 * 30),
+    createdAt: iso(1000 * 60 * 30),
   },
   {
     alertId: "ALT-002",
@@ -31,7 +34,7 @@ export const mockAlerts: Alert[] = [
     primaryFlag: "RAPID_MOVEMENT",
     status: "PENDING",
     totalAmount: 45000,
-    createdAt: new Date(Date.now() - 1000 * 60 * 120),
+    createdAt: iso(1000 * 60 * 120),
   },
   {
     alertId: "ALT-003",
@@ -43,7 +46,7 @@ export const mockAlerts: Alert[] = [
     primaryFlag: "STRUCTURING",
     status: "PENDING",
     totalAmount: 9800,
-    createdAt: new Date(Date.now() - 1000 * 60 * 180),
+    createdAt: iso(1000 * 60 * 180),
   },
   {
     alertId: "ALT-004",
@@ -55,7 +58,7 @@ export const mockAlerts: Alert[] = [
     primaryFlag: "SMURFING",
     status: "PENDING",
     totalAmount: 52000,
-    createdAt: new Date(Date.now() - 1000 * 60 * 60 * 4),
+    createdAt: iso(1000 * 60 * 60 * 4),
   },
   {
     alertId: "ALT-005",
@@ -67,7 +70,7 @@ export const mockAlerts: Alert[] = [
     primaryFlag: "UNUSUAL_LOCATION",
     status: "PENDING",
     totalAmount: 2500,
-    createdAt: new Date(Date.now() - 1000 * 60 * 60 * 5),
+    createdAt: iso(1000 * 60 * 60 * 5),
   },
   {
     alertId: "ALT-006",
@@ -79,7 +82,7 @@ export const mockAlerts: Alert[] = [
     primaryFlag: "RAPID_MOVEMENT",
     status: "PENDING",
     totalAmount: 88000,
-    createdAt: new Date(Date.now() - 1000 * 60 * 60 * 6),
+    createdAt: iso(1000 * 60 * 60 * 6),
   },
   {
     alertId: "ALT-007",
@@ -91,7 +94,7 @@ export const mockAlerts: Alert[] = [
     primaryFlag: "ACCOUNT_CLEARING",
     status: "PENDING",
     totalAmount: 320000,
-    createdAt: new Date(Date.now() - 1000 * 60 * 60 * 8),
+    createdAt: iso(1000 * 60 * 60 * 8),
   },
   {
     alertId: "ALT-008",
@@ -103,7 +106,7 @@ export const mockAlerts: Alert[] = [
     primaryFlag: "STRUCTURING",
     status: "PENDING",
     totalAmount: 9500,
-    createdAt: new Date(Date.now() - 1000 * 60 * 60 * 12),
+    createdAt: iso(1000 * 60 * 60 * 12),
   },
 ];
 
@@ -119,7 +122,7 @@ export const mockAlertDetails: Record<string, AlertDetail> = {
         amount: 1125000,
         percentage: 90,
         transactionCount: 4,
-        timestamp: new Date(Date.now() - 1000 * 60 * 60),
+        timestamp: iso(1000 * 60 * 60),
       },
       {
         flagId: "FLG-002",
@@ -129,7 +132,7 @@ export const mockAlertDetails: Record<string, AlertDetail> = {
         amount: 125000,
         percentage: 10,
         transactionCount: 2,
-        timestamp: new Date(Date.now() - 1000 * 60 * 45),
+        timestamp: iso(1000 * 60 * 45),
       },
       {
         flagId: "FLG-003",
@@ -139,7 +142,7 @@ export const mockAlertDetails: Record<string, AlertDetail> = {
         amount: 48000,
         percentage: 3.8,
         transactionCount: 6,
-        timestamp: new Date(Date.now() - 1000 * 60 * 60 * 2),
+        timestamp: iso(1000 * 60 * 60 * 2),
       },
     ],
     llmReasoning: {
@@ -158,15 +161,15 @@ export const mockAlertDetails: Record<string, AlertDetail> = {
     },
     sarDraft: {
       reportNumber: "SAR-2024-SW-0341",
-      filingDate: new Date(),
+      filingDate: new Date().toISOString(),
       subjectName: "Global Trade Corp",
       subjectAccountNumber: "ACCT-8821",
       suspiciousActivityType: "Account Clearing / Capital Flight / Money Laundering",
       narrative:
         "Charles Schwab & Co., Inc. is filing this Suspicious Activity Report regarding account holder Global Trade Corp (Account No. ACCT-8821). During the reporting period, the subject conducted a series of transactions totaling $1,250,000 that exhibit characteristics consistent with a structured money laundering scheme.\n\nBetween [Date Range], six cash deposits ranging from $7,800 to $9,900 were made, totaling $48,000 — structured to avoid Currency Transaction Report filing requirements. Subsequently, four wire transfers totaling $1,125,000 (representing 90% of the account's historical average balance) were executed within 48 hours. Of these, $125,000 was wired to offshore correspondent banks in Cyprus and the British Virgin Islands, jurisdictions with elevated FATF risk ratings.\n\nBased on AI-assisted forensic analysis (Confidence: 92%), this activity is assessed as SUSPICIOUS. The transaction sequence — structured placement, rapid layering, and international integration — is consistent with established money laundering typologies. Immediate SAR filing and FinCEN referral recommended.",
       totalAmount: 1250000,
-      dateRangeStart: new Date(Date.now() - 1000 * 60 * 60 * 48),
-      dateRangeEnd: new Date(),
+      dateRangeStart: iso(1000 * 60 * 60 * 48),
+      dateRangeEnd: new Date().toISOString(),
       filingInstitution: "Charles Schwab & Co., Inc.",
       filingOfficer: "AML Compliance Team — AI.x Division",
     },

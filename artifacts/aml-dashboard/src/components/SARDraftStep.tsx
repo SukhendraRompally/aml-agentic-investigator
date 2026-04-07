@@ -1,4 +1,4 @@
-import type { AlertDetail } from "@workspace/api-client-react/src/generated/api.schemas";
+import type { AlertDetail } from "@workspace/api-client-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { FileText, Building2 } from "lucide-react";
 

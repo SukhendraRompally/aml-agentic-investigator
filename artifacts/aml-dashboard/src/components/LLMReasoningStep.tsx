@@ -1,4 +1,4 @@
-import type { AlertDetail } from "@workspace/api-client-react/src/generated/api.schemas";
+import type { AlertDetail } from "@workspace/api-client-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { Brain, CheckCircle2, AlertCircle, HelpCircle } from "lucide-react";
@@ -129,7 +129,7 @@ export function LLMReasoningStep({ detail, isLoading }: LLMReasoningStepProps) {
           Key Risk Factors
         </p>
         <ul className="space-y-1.5" data-testid="risk-factors">
-          {r.riskFactors.map((factor, i) => (
+          {(r.riskFactors as string[]).map((factor: string, i: number) => (
             <li key={i} className="flex items-start gap-2 text-sm text-foreground">
               <span className="text-destructive font-bold mt-0.5 flex-shrink-0">›</span>
               {factor}

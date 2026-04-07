@@ -138,7 +138,7 @@ export function TransactionFeed({
                     {tx.has_sar ? (
                       <FileText
                         className="h-3.5 w-3.5 text-primary"
-                        title={tx.sar_report_id}
+                        aria-label={tx.sar_report_id}
                       />
                     ) : (
                       <span className="text-muted-foreground/30 text-xs">—</span>

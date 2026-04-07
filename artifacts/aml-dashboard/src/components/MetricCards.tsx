@@ -1,12 +1,18 @@
-import { useGetMetricsSummary } from "@workspace/api-client-react";
+import {
+  useGetMetricsSummary,
+  getGetMetricsSummaryQueryKey,
+} from "@workspace/api-client-react";
 import { DEMO_MODE } from "@/config";
 import { mockMetrics } from "@/mockData";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ShieldAlert, ShieldCheck, AlertTriangle, Clock } from "lucide-react";
+import { ShieldAlert, ShieldCheck, Clock } from "lucide-react";
 
 export function MetricCards() {
   const { data, isLoading, isError } = useGetMetricsSummary({
-    query: { enabled: !DEMO_MODE },
+    query: {
+      enabled: !DEMO_MODE,
+      queryKey: getGetMetricsSummaryQueryKey(),
+    },
   });
 
   const metrics = DEMO_MODE || isError ? mockMetrics : data;
