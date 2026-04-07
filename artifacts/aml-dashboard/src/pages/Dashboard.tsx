@@ -4,7 +4,7 @@ import { DEMO_MODE, PIPELINE_BASE_URL } from "@/config";
 import { mockAlertDetails } from "@/mockData";
 import { usePipeline } from "@/hooks/usePipeline";
 import { buildPipelineWorkQueue } from "@/lib/transactionToAlert";
-import { MetricCards } from "@/components/MetricCards";
+import { PipelineStats } from "@/components/PipelineStats";
 import { Sidebar } from "@/components/Sidebar";
 import { TriageStep } from "@/components/TriageStep";
 import { LLMReasoningStep } from "@/components/LLMReasoningStep";
@@ -32,7 +32,7 @@ import {
 
 export function Dashboard() {
   const [selectedAlertId, setSelectedAlertId] = useState<string | null>(null);
-  const [pipelineOpen, setPipelineOpen] = useState(false);
+  const [pipelineOpen, setPipelineOpen] = useState(true);
   const { state: pipelineState, runPipeline, reset: resetPipeline } = usePipeline();
 
   const pipelineWorkQueue = useMemo(() => {
@@ -65,10 +65,15 @@ export function Dashboard() {
     return pipelineWorkQueue.verdicts[selectedAlertId] ?? null;
   }, [selectedAlertId, pipelineWorkQueue]);
 
-  const pipelineIsActive =
-    pipelineState.status === "running" ||
-    pipelineState.status === "done" ||
-    pipelineState.status === "error";
+  function handleRun() {
+    setSelectedAlertId(null);
+    runPipeline();
+  }
+
+  function handleReset() {
+    setSelectedAlertId(null);
+    resetPipeline();
+  }
 
   const steps = [
     {
@@ -121,21 +126,19 @@ export function Dashboard() {
                 Demo Mode
               </Badge>
             )}
-            {pipelineWorkQueue && (
-              <Badge className="text-[10px] px-2 py-0.5 bg-primary/20 text-primary border border-primary/30">
-                <Zap className="h-2.5 w-2.5 mr-1" />
-                {pipelineWorkQueue.alerts.length} Flagged for Review
-              </Badge>
-            )}
             <Button
               size="sm"
               variant="ghost"
               onClick={() => setPipelineOpen((o) => !o)}
-              className={`text-white/70 hover:text-white hover:bg-white/10 text-xs ${pipelineState.status === "running" ? "text-primary" : ""}`}
+              className={`text-white/70 hover:text-white hover:bg-white/10 text-xs ${
+                pipelineState.status === "running" ? "text-primary" : ""
+              }`}
               data-testid="pipeline-toggle-btn"
             >
               <Zap
-                className={`h-3.5 w-3.5 mr-1.5 ${pipelineState.status === "running" ? "animate-pulse text-primary" : ""}`}
+                className={`h-3.5 w-3.5 mr-1.5 ${
+                  pipelineState.status === "running" ? "animate-pulse text-primary" : ""
+                }`}
               />
               Batch Pipeline
               {pipelineOpen ? (
@@ -156,21 +159,15 @@ export function Dashboard() {
         </div>
       </header>
 
-      {/* ── Batch Pipeline Panel (collapsible) ── */}
+      {/* ── Batch Pipeline Panel ── */}
       {pipelineOpen && (
         <div className="flex-shrink-0 border-b border-border bg-muted/30">
           <PipelineControl
             state={pipelineState}
-            onRun={() => {
-              setSelectedAlertId(null);
-              runPipeline();
-            }}
-            onReset={() => {
-              setSelectedAlertId(null);
-              resetPipeline();
-            }}
+            onRun={handleRun}
+            onReset={handleReset}
           />
-          {pipelineIsActive && (
+          {(pipelineState.status === "running" || pipelineState.status === "done" || pipelineState.status === "error") && (
             <div className="px-6 pb-4 space-y-4">
               {pipelineState.status === "running" && (
                 <>
@@ -178,7 +175,7 @@ export function Dashboard() {
                   <TransactionFeed
                     transactions={pipelineState.cumulative.completed_transactions}
                     isLive
-                    maxHeight="220px"
+                    maxHeight="200px"
                   />
                 </>
               )}
@@ -192,22 +189,16 @@ export function Dashboard() {
               )}
             </div>
           )}
-          {pipelineState.status === "done" && pipelineWorkQueue && (
-            <div className="px-6 pb-4">
-              <p className="text-xs text-primary font-medium flex items-center gap-1.5">
-                <Zap className="h-3 w-3" />
-                Work queue updated — {pipelineWorkQueue.alerts.length} flagged transactions ready
-                for manual review below. Click any item to begin the 4-step investigation.
-              </p>
-            </div>
-          )}
         </div>
       )}
 
-      {/* ── Metrics Row ── */}
-      <div className="flex-shrink-0 px-6 py-4 border-b border-border bg-background">
-        <MetricCards />
-      </div>
+      {/* ── Pipeline Stats Bar (replaces static metric cards) ── */}
+      <PipelineStats
+        pipelineState={pipelineState}
+        onRunPipeline={handleRun}
+        onOpenPanel={() => setPipelineOpen(true)}
+        isPipelineOpen={pipelineOpen}
+      />
 
       {/* ── Main: Sidebar + Detail Panel ── */}
       <div className="flex flex-1 overflow-hidden">
@@ -216,27 +207,34 @@ export function Dashboard() {
             selectedAlertId={selectedAlertId}
             onSelectAlert={setSelectedAlertId}
             pipelineAlerts={pipelineWorkQueue?.alerts}
+            pipelineStatus={pipelineState.status}
           />
         </aside>
 
         <main className="flex-1 overflow-hidden flex flex-col">
           {!selectedAlertId ? (
             <div className="flex flex-1 items-center justify-center">
-              <div className="text-center max-w-sm">
+              <div className="text-center max-w-sm px-6">
                 <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-4">
-                  {pipelineWorkQueue ? (
+                  {pipelineState.status === "done" && pipelineWorkQueue ? (
                     <Zap className="h-8 w-8 text-primary" />
                   ) : (
                     <AlertTriangle className="h-8 w-8 text-primary" />
                   )}
                 </div>
                 <h3 className="text-lg font-semibold text-foreground mb-2">
-                  {pipelineWorkQueue ? "Select a Flagged Transaction" : "No Alert Selected"}
+                  {pipelineState.status === "done" && pipelineWorkQueue
+                    ? "Select a flagged transaction"
+                    : pipelineState.status === "running"
+                      ? "Pipeline processing…"
+                      : "Ready to Investigate"}
                 </h3>
                 <p className="text-sm text-muted-foreground">
-                  {pipelineWorkQueue
-                    ? `Pipeline surfaced ${pipelineWorkQueue.alerts.length} flagged transactions. Select one from the work queue to begin your manual review.`
-                    : "Select an alert from the work queue or run the batch pipeline to begin forensic analysis."}
+                  {pipelineState.status === "done" && pipelineWorkQueue
+                    ? `${pipelineWorkQueue.alerts.length} transactions flagged by the pipeline. Select one from the work queue to begin the 4-step manual review.`
+                    : pipelineState.status === "running"
+                      ? "Flagged transactions will appear in the work queue once the pipeline finishes."
+                      : "Run the batch pipeline above to surface AML cases for investigation."}
                 </p>
               </div>
             </div>
@@ -249,12 +247,18 @@ export function Dashboard() {
                       {selectedAlertId}
                     </h2>
                     {pipelineVerdict && (
-                      <Badge variant="outline" className="text-[10px] h-5 border-primary/40 text-primary">
+                      <Badge
+                        variant="outline"
+                        className="text-[10px] h-5 border-primary/40 text-primary"
+                      >
                         <Zap className="h-2.5 w-2.5 mr-0.5" /> Pipeline
                       </Badge>
                     )}
                     {detail?.sarDraft && (
-                      <Badge variant="outline" className="text-[10px] h-5 border-amber-500/50 text-amber-600">
+                      <Badge
+                        variant="outline"
+                        className="text-[10px] h-5 border-amber-500/50 text-amber-600"
+                      >
                         SAR Generated
                       </Badge>
                     )}
@@ -263,13 +267,16 @@ export function Dashboard() {
                     {isLoading && !pipelineWorkQueue
                       ? "Loading analysis…"
                       : detail
-                        ? `${detail.accountName} — $${(detail.totalAmount ?? 0).toLocaleString()}`
-                        : "Alert not found"}
+                        ? `${detail.accountName} — $${(detail.totalAmount ?? 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}`
+                        : "Transaction not found"}
                   </p>
                 </div>
               </div>
 
-              <Tabs defaultValue="triage" className="flex-1 flex flex-col overflow-hidden px-6 pb-4">
+              <Tabs
+                defaultValue="triage"
+                className="flex-1 flex flex-col overflow-hidden px-6 pb-4"
+              >
                 <TabsList className="grid grid-cols-4 flex-shrink-0 mb-4 h-auto">
                   {steps.map((step, i) => {
                     const Icon = step.icon;
