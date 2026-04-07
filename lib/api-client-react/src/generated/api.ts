@@ -5,18 +5,29 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import type {
+  MutationFunction,
   QueryFunction,
   QueryKey,
+  UseMutationOptions,
+  UseMutationResult,
   UseQueryOptions,
   UseQueryResult,
 } from "@tanstack/react-query";
 
-import type { HealthStatus } from "./api.schemas";
+import type {
+  AlertDetail,
+  AlertListResponse,
+  AnalyzeRequest,
+  AnalyzeResponse,
+  GroundTruthResponse,
+  HealthStatus,
+  MetricsSummary,
+} from "./api.schemas";
 
 import { customFetch } from "../custom-fetch";
-import type { ErrorType } from "../custom-fetch";
+import type { ErrorType, BodyType } from "../custom-fetch";
 
 type AwaitedInput<T> = PromiseLike<T> | T;
 
@@ -92,6 +103,416 @@ export function useHealthCheck<
   request?: SecondParameter<typeof customFetch>;
 }): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
   const queryOptions = getHealthCheckQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * Runs the 4-step AML pipeline on a transaction or account batch
+ * @summary Analyze transaction for AML
+ */
+export const getAnalyzeTransactionUrl = () => {
+  return `/api/analyze`;
+};
+
+export const analyzeTransaction = async (
+  analyzeRequest: AnalyzeRequest,
+  options?: RequestInit,
+): Promise<AnalyzeResponse> => {
+  return customFetch<AnalyzeResponse>(getAnalyzeTransactionUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(analyzeRequest),
+  });
+};
+
+export const getAnalyzeTransactionMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof analyzeTransaction>>,
+    TError,
+    { data: BodyType<AnalyzeRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof analyzeTransaction>>,
+  TError,
+  { data: BodyType<AnalyzeRequest> },
+  TContext
+> => {
+  const mutationKey = ["analyzeTransaction"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof analyzeTransaction>>,
+    { data: BodyType<AnalyzeRequest> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return analyzeTransaction(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type AnalyzeTransactionMutationResult = NonNullable<
+  Awaited<ReturnType<typeof analyzeTransaction>>
+>;
+export type AnalyzeTransactionMutationBody = BodyType<AnalyzeRequest>;
+export type AnalyzeTransactionMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Analyze transaction for AML
+ */
+export const useAnalyzeTransaction = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof analyzeTransaction>>,
+    TError,
+    { data: BodyType<AnalyzeRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof analyzeTransaction>>,
+  TError,
+  { data: BodyType<AnalyzeRequest> },
+  TContext
+> => {
+  return useMutation(getAnalyzeTransactionMutationOptions(options));
+};
+
+/**
+ * Returns all active AML alerts for the work queue
+ * @summary List all AML alerts
+ */
+export const getListAlertsUrl = () => {
+  return `/api/alerts`;
+};
+
+export const listAlerts = async (
+  options?: RequestInit,
+): Promise<AlertListResponse> => {
+  return customFetch<AlertListResponse>(getListAlertsUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getListAlertsQueryKey = () => {
+  return [`/api/alerts`] as const;
+};
+
+export const getListAlertsQueryOptions = <
+  TData = Awaited<ReturnType<typeof listAlerts>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof listAlerts>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getListAlertsQueryKey();
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof listAlerts>>> = ({
+    signal,
+  }) => listAlerts({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof listAlerts>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListAlertsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listAlerts>>
+>;
+export type ListAlertsQueryError = ErrorType<unknown>;
+
+/**
+ * @summary List all AML alerts
+ */
+
+export function useListAlerts<
+  TData = Awaited<ReturnType<typeof listAlerts>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof listAlerts>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListAlertsQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * Returns full analysis details for a specific alert
+ * @summary Get alert details
+ */
+export const getGetAlertUrl = (alertId: string) => {
+  return `/api/alerts/${alertId}`;
+};
+
+export const getAlert = async (
+  alertId: string,
+  options?: RequestInit,
+): Promise<AlertDetail> => {
+  return customFetch<AlertDetail>(getGetAlertUrl(alertId), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetAlertQueryKey = (alertId: string) => {
+  return [`/api/alerts/${alertId}`] as const;
+};
+
+export const getGetAlertQueryOptions = <
+  TData = Awaited<ReturnType<typeof getAlert>>,
+  TError = ErrorType<unknown>,
+>(
+  alertId: string,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getAlert>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetAlertQueryKey(alertId);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getAlert>>> = ({
+    signal,
+  }) => getAlert(alertId, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!alertId,
+    ...queryOptions,
+  } as UseQueryOptions<Awaited<ReturnType<typeof getAlert>>, TError, TData> & {
+    queryKey: QueryKey;
+  };
+};
+
+export type GetAlertQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getAlert>>
+>;
+export type GetAlertQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Get alert details
+ */
+
+export function useGetAlert<
+  TData = Awaited<ReturnType<typeof getAlert>>,
+  TError = ErrorType<unknown>,
+>(
+  alertId: string,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getAlert>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetAlertQueryOptions(alertId, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * Returns the actual isFraud label and validation metrics for the alert
+ * @summary Reveal ground truth
+ */
+export const getRevealGroundTruthUrl = (alertId: string) => {
+  return `/api/alerts/${alertId}/reveal`;
+};
+
+export const revealGroundTruth = async (
+  alertId: string,
+  options?: RequestInit,
+): Promise<GroundTruthResponse> => {
+  return customFetch<GroundTruthResponse>(getRevealGroundTruthUrl(alertId), {
+    ...options,
+    method: "POST",
+  });
+};
+
+export const getRevealGroundTruthMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof revealGroundTruth>>,
+    TError,
+    { alertId: string },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof revealGroundTruth>>,
+  TError,
+  { alertId: string },
+  TContext
+> => {
+  const mutationKey = ["revealGroundTruth"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof revealGroundTruth>>,
+    { alertId: string }
+  > = (props) => {
+    const { alertId } = props ?? {};
+
+    return revealGroundTruth(alertId, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type RevealGroundTruthMutationResult = NonNullable<
+  Awaited<ReturnType<typeof revealGroundTruth>>
+>;
+
+export type RevealGroundTruthMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Reveal ground truth
+ */
+export const useRevealGroundTruth = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof revealGroundTruth>>,
+    TError,
+    { alertId: string },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof revealGroundTruth>>,
+  TError,
+  { alertId: string },
+  TContext
+> => {
+  return useMutation(getRevealGroundTruthMutationOptions(options));
+};
+
+/**
+ * Returns aggregate metric counts for the dashboard header cards
+ * @summary Get dashboard metrics summary
+ */
+export const getGetMetricsSummaryUrl = () => {
+  return `/api/metrics/summary`;
+};
+
+export const getMetricsSummary = async (
+  options?: RequestInit,
+): Promise<MetricsSummary> => {
+  return customFetch<MetricsSummary>(getGetMetricsSummaryUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetMetricsSummaryQueryKey = () => {
+  return [`/api/metrics/summary`] as const;
+};
+
+export const getGetMetricsSummaryQueryOptions = <
+  TData = Awaited<ReturnType<typeof getMetricsSummary>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getMetricsSummary>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetMetricsSummaryQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getMetricsSummary>>
+  > = ({ signal }) => getMetricsSummary({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getMetricsSummary>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetMetricsSummaryQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getMetricsSummary>>
+>;
+export type GetMetricsSummaryQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Get dashboard metrics summary
+ */
+
+export function useGetMetricsSummary<
+  TData = Awaited<ReturnType<typeof getMetricsSummary>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getMetricsSummary>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetMetricsSummaryQueryOptions(options);
 
   const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
     queryKey: QueryKey;

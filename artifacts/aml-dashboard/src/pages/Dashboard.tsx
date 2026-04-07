@@ -1,0 +1,225 @@
+import { useState } from "react";
+import { useGetAlert, getGetAlertQueryKey } from "@workspace/api-client-react";
+import { DEMO_MODE } from "@/config";
+import { mockAlertDetails } from "@/mockData";
+import { MetricCards } from "@/components/MetricCards";
+import { Sidebar } from "@/components/Sidebar";
+import { TriageStep } from "@/components/TriageStep";
+import { LLMReasoningStep } from "@/components/LLMReasoningStep";
+import { SARDraftStep } from "@/components/SARDraftStep";
+import { ValidationStep } from "@/components/ValidationStep";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Badge } from "@/components/ui/badge";
+import {
+  AlertTriangle,
+  Brain,
+  FileText,
+  ShieldCheck,
+  Activity,
+  Database,
+} from "lucide-react";
+
+export function Dashboard() {
+  const [selectedAlertId, setSelectedAlertId] = useState<string | null>(null);
+
+  const { data: alertDetail, isLoading } = useGetAlert(
+    selectedAlertId ?? "",
+    {
+      query: {
+        enabled: !DEMO_MODE && !!selectedAlertId,
+        queryKey: getGetAlertQueryKey(selectedAlertId ?? ""),
+      },
+    }
+  );
+
+  const detail =
+    DEMO_MODE && selectedAlertId
+      ? mockAlertDetails[selectedAlertId] ?? null
+      : alertDetail ?? null;
+
+  const steps = [
+    {
+      id: "triage",
+      label: "Behavioral Triage",
+      shortLabel: "Triage",
+      icon: AlertTriangle,
+      badge: detail ? String(detail.triageFlags?.length ?? 0) : undefined,
+    },
+    {
+      id: "reasoning",
+      label: "LLM Investigator",
+      shortLabel: "Reasoning",
+      icon: Brain,
+      badge: detail?.llmReasoning
+        ? String(Math.round((detail.llmReasoning.confidenceScore ?? 0) * 100)) + "%"
+        : undefined,
+    },
+    {
+      id: "sar",
+      label: "SAR Drafter",
+      shortLabel: "SAR",
+      icon: FileText,
+      badge: detail?.sarDraft ? "Draft Ready" : undefined,
+    },
+    {
+      id: "validation",
+      label: "Reveal Ground Truth",
+      shortLabel: "Validation",
+      icon: ShieldCheck,
+    },
+  ];
+
+  return (
+    <div className="min-h-screen flex flex-col bg-background">
+      <header
+        className="flex-shrink-0 border-b border-border/50 px-6 py-3"
+        style={{ backgroundColor: "hsl(var(--secondary))" }}
+      >
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2">
+              <Database className="h-5 w-5 text-primary" />
+              <span className="text-white font-bold text-lg tracking-tight">
+                SCHWAB AI.x
+              </span>
+              <span className="text-white/50 font-light">—</span>
+              <span className="text-white/80 font-medium text-sm tracking-wide">
+                AML Agentic Investigator
+              </span>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-4">
+            {DEMO_MODE && (
+              <Badge
+                className="text-[10px] px-2 py-0.5 bg-amber-500/20 text-amber-300 border border-amber-500/30"
+                data-testid="demo-mode-badge"
+              >
+                Demo Mode
+              </Badge>
+            )}
+            <div className="flex items-center gap-2" data-testid="system-status">
+              <Activity className="h-4 w-4 text-green-400" />
+              <div className="flex items-center gap-1.5">
+                <span className="relative flex h-2 w-2">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75" />
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500" />
+                </span>
+                <span className="text-green-400 text-xs font-medium">System Ready</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </header>
+
+      <div className="flex-shrink-0 px-6 py-4 border-b border-border bg-background">
+        <MetricCards />
+      </div>
+
+      <div className="flex flex-1 overflow-hidden">
+        <aside className="flex-shrink-0 overflow-hidden border-r border-border">
+          <Sidebar
+            selectedAlertId={selectedAlertId}
+            onSelectAlert={setSelectedAlertId}
+          />
+        </aside>
+
+        <main className="flex-1 overflow-hidden flex flex-col">
+          {!selectedAlertId ? (
+            <div className="flex flex-1 items-center justify-center">
+              <div className="text-center max-w-sm">
+                <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-4">
+                  <AlertTriangle className="h-8 w-8 text-primary" />
+                </div>
+                <h3 className="text-lg font-semibold text-foreground mb-2">
+                  No Alert Selected
+                </h3>
+                <p className="text-sm text-muted-foreground">
+                  Select an alert from the work queue on the left to begin forensic
+                  analysis through the 4-step pipeline.
+                </p>
+              </div>
+            </div>
+          ) : (
+            <div className="flex flex-col flex-1 overflow-hidden">
+              <div className="flex-shrink-0 px-6 pt-4 pb-0">
+                <div className="mb-3">
+                  <h2 className="text-base font-semibold text-foreground font-mono">
+                    {selectedAlertId}
+                  </h2>
+                  <p className="text-xs text-muted-foreground">
+                    {isLoading
+                      ? "Loading analysis..."
+                      : detail
+                        ? `${detail.accountName} — $${(detail.totalAmount ?? 0).toLocaleString()}`
+                        : "Alert not found"}
+                  </p>
+                </div>
+              </div>
+
+              <Tabs defaultValue="triage" className="flex-1 flex flex-col overflow-hidden px-6 pb-4">
+                <TabsList className="grid grid-cols-4 flex-shrink-0 mb-4 h-auto">
+                  {steps.map((step, i) => {
+                    const Icon = step.icon;
+                    return (
+                      <TabsTrigger
+                        key={step.id}
+                        value={step.id}
+                        className="flex items-center gap-1.5 py-2.5"
+                        data-testid={`tab-${step.id}`}
+                      >
+                        <span className="flex items-center justify-center w-5 h-5 rounded-full bg-muted text-muted-foreground text-[10px] font-bold flex-shrink-0">
+                          {i + 1}
+                        </span>
+                        <Icon className="h-3.5 w-3.5 hidden sm:block flex-shrink-0" />
+                        <span className="text-xs font-medium truncate">
+                          {step.shortLabel}
+                        </span>
+                        {step.badge && (
+                          <Badge
+                            className="text-[9px] px-1.5 h-4 ml-0.5 hidden md:inline-flex flex-shrink-0"
+                            variant="secondary"
+                          >
+                            {step.badge}
+                          </Badge>
+                        )}
+                      </TabsTrigger>
+                    );
+                  })}
+                </TabsList>
+
+                <ScrollArea className="flex-1">
+                  <div className="pr-2 pb-4">
+                    <TabsContent value="triage" className="mt-0">
+                      <TriageStep detail={detail} isLoading={!DEMO_MODE && isLoading} />
+                    </TabsContent>
+
+                    <TabsContent value="reasoning" className="mt-0">
+                      <LLMReasoningStep
+                        detail={detail}
+                        isLoading={!DEMO_MODE && isLoading}
+                      />
+                    </TabsContent>
+
+                    <TabsContent value="sar" className="mt-0">
+                      <SARDraftStep detail={detail} isLoading={!DEMO_MODE && isLoading} />
+                    </TabsContent>
+
+                    <TabsContent value="validation" className="mt-0">
+                      <ValidationStep
+                        alertId={selectedAlertId}
+                        detail={detail}
+                        isLoading={!DEMO_MODE && isLoading}
+                      />
+                    </TabsContent>
+                  </div>
+                </ScrollArea>
+              </Tabs>
+            </div>
+          )}
+        </main>
+      </div>
+    </div>
+  );
+}
