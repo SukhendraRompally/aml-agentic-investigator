@@ -1,0 +1,89 @@
+Backend URL
+
+http://20.98.68.88:8005
+Step 1 — Start the pipeline
+
+POST http://20.98.68.88:8005/pipeline/run-async
+No body needed. Call this when the user clicks "Run Pipeline".
+
+Step 2 — Poll every 2 seconds
+
+GET http://20.98.68.88:8005/pipeline/status
+Stop polling when status === "done" or status === "error".
+
+Use cumulative from this response to update the live scoreboard and transaction feed while it's still running:
+
+
+{
+  "status": "running",
+  "step": 2,
+  "step_label": "LLM Investigation + SAR Drafting",
+  "progress": 8,
+  "progress_total": 23,
+  "cumulative": {
+    "true_positives": 5,
+    "false_positives": 2,
+    "false_negatives": 1,
+    "true_negatives": 0,
+    "precision": 0.714,
+    "recall": 0.833,
+    "sars_generated": 5,
+    "completed_transactions": [
+      {
+        "nameOrig": "C1234567",
+        "amount": 82400.0,
+        "type": "TRANSFER",
+        "ai_decision": "SUSPICIOUS",
+        "risk_level": "HIGH",
+        "pattern_type": "Account Draining",
+        "behavioral_reasoning": "Account drained 98% of origin balance...",
+        "actual_fraud": 1,
+        "verdict": "TP",
+        "has_sar": true,
+        "sar_report_id": "SAR-20260407-A3F2C1"
+      }
+    ]
+  }
+}
+Step 3 — Fetch full results once done
+
+GET http://20.98.68.88:8005/pipeline/results
+
+{
+  "triage_summary": {
+    "total_sampled": 100,
+    "flagged_count": 23,
+    "flag_rate_pct": 23.0,
+    "by_type": { "TRANSFER": 15, "CASH_OUT": 8 }
+  },
+  "flagged_transactions": [ /* same as cumulative.completed_transactions */ ],
+  "sars": [
+    {
+      "report_id": "SAR-20260407-A3F2C1",
+      "subject_id": "C1234567",
+      "narrative_of_suspicion": "...",
+      "risk_level": "HIGH",
+      "suspicious_activity_type": "Account Draining",
+      "recommended_action": "File SAR with FinCEN. Monitor account.",
+      "generated_at": "2026-04-07T..."
+    }
+  ],
+  "validation": {
+    "precision": 0.82,
+    "recall": 0.76,
+    "f1": 0.79,
+    "true_positives": 15,
+    "false_positives": 3,
+    "false_negatives": 5,
+    "true_negatives": 0,
+    "sars_generated": 15,
+    "false_positive_details": [ { "nameOrig": "...", "behavioral_reasoning": "..." } ],
+    "false_negative_details": [ { "nameOrig": "...", "behavioral_reasoning": "..." } ]
+  }
+}
+Verdict key (for color-coding rows)
+verdict	Meaning
+TP	AI said SUSPICIOUS → actually fraud ✅
+FP	AI said SUSPICIOUS → actually clean ⚠️
+FN	AI said LOW_RISK → actually fraud ❌
+TN	AI said LOW_RISK → actually clean ✅

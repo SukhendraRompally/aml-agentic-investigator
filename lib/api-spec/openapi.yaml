@@ -1,0 +1,403 @@
+openapi: 3.1.0
+info:
+  # Do not change the title, if the title changes, the import paths will be broken
+  title: Api
+  version: 0.1.0
+  description: API specification
+servers:
+  - url: /api
+    description: Base API path
+tags:
+  - name: health
+    description: Health operations
+  - name: aml
+    description: AML Analysis Operations
+paths:
+  /healthz:
+    get:
+      operationId: healthCheck
+      tags: [health]
+      summary: Health check
+      description: Returns server health status
+      responses:
+        "200":
+          description: Healthy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthStatus"
+  /analyze:
+    post:
+      operationId: analyzeTransaction
+      tags: [aml]
+      summary: Analyze transaction for AML
+      description: Runs the 4-step AML pipeline on a transaction or account batch
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AnalyzeRequest"
+      responses:
+        "200":
+          description: AML analysis result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AnalyzeResponse"
+  /alerts:
+    get:
+      operationId: listAlerts
+      tags: [aml]
+      summary: List all AML alerts
+      description: Returns all active AML alerts for the work queue
+      responses:
+        "200":
+          description: List of alerts
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AlertListResponse"
+  /alerts/{alertId}:
+    get:
+      operationId: getAlert
+      tags: [aml]
+      summary: Get alert details
+      description: Returns full analysis details for a specific alert
+      parameters:
+        - name: alertId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Alert detail
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AlertDetail"
+  /alerts/{alertId}/reveal:
+    post:
+      operationId: revealGroundTruth
+      tags: [aml]
+      summary: Reveal ground truth
+      description: Returns the actual isFraud label and validation metrics for the alert
+      parameters:
+        - name: alertId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Ground truth validation result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GroundTruthResponse"
+  /metrics/summary:
+    get:
+      operationId: getMetricsSummary
+      tags: [aml]
+      summary: Get dashboard metrics summary
+      description: Returns aggregate metric counts for the dashboard header cards
+      responses:
+        "200":
+          description: Metrics summary
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MetricsSummary"
+components:
+  schemas:
+    HealthStatus:
+      type: object
+      properties:
+        status:
+          type: string
+      required:
+        - status
+
+    AnalyzeRequest:
+      type: object
+      properties:
+        accountId:
+          type: string
+          description: The account ID to analyze
+        transactionIds:
+          type: array
+          items:
+            type: string
+          description: Optional list of specific transaction IDs to analyze
+      required:
+        - accountId
+
+    TriageFlag:
+      type: object
+      properties:
+        flagId:
+          type: string
+        flagType:
+          type: string
+          description: "e.g. ACCOUNT_CLEARING, RAPID_MOVEMENT, STRUCTURING"
+        description:
+          type: string
+          description: "Human-readable description, e.g. '90% balance drain in 48h'"
+        severity:
+          type: string
+          enum: [LOW, MEDIUM, HIGH, CRITICAL]
+        amount:
+          type: number
+          description: Transaction amount in USD
+        percentage:
+          type: number
+          description: Percentage of balance affected (0-100)
+        transactionCount:
+          type: integer
+        timestamp:
+          type: string
+          format: date-time
+      required:
+        - flagId
+        - flagType
+        - description
+        - severity
+        - amount
+        - transactionCount
+        - timestamp
+
+    LLMReasoning:
+      type: object
+      properties:
+        forensicAnalysis:
+          type: string
+          description: Detailed narrative from the LLM forensic analysis
+        confidenceScore:
+          type: number
+          minimum: 0
+          maximum: 1
+          description: Confidence level (0-1) for the AI's risk assessment
+        riskFactors:
+          type: array
+          items:
+            type: string
+          description: Key risk factors identified
+        aiDecision:
+          type: string
+          enum: [SUSPICIOUS, BENIGN, REVIEW_NEEDED]
+        modelUsed:
+          type: string
+          description: "e.g. claude-3-5-sonnet-20241022"
+      required:
+        - forensicAnalysis
+        - confidenceScore
+        - riskFactors
+        - aiDecision
+        - modelUsed
+
+    SARDraft:
+      type: object
+      properties:
+        reportNumber:
+          type: string
+        filingDate:
+          type: string
+          format: date
+        subjectName:
+          type: string
+        subjectAccountNumber:
+          type: string
+        suspiciousActivityType:
+          type: string
+        narrative:
+          type: string
+          description: The full SAR narrative text
+        totalAmount:
+          type: number
+        dateRangeStart:
+          type: string
+          format: date
+        dateRangeEnd:
+          type: string
+          format: date
+        filingInstitution:
+          type: string
+        filingOfficer:
+          type: string
+      required:
+        - reportNumber
+        - filingDate
+        - subjectName
+        - subjectAccountNumber
+        - suspiciousActivityType
+        - narrative
+        - totalAmount
+        - dateRangeStart
+        - dateRangeEnd
+        - filingInstitution
+        - filingOfficer
+
+    AnalyzeResponse:
+      type: object
+      properties:
+        alertId:
+          type: string
+        accountId:
+          type: string
+        status:
+          type: string
+          enum: [PROCESSING, COMPLETE, ERROR]
+        triageFlags:
+          type: array
+          items:
+            $ref: "#/components/schemas/TriageFlag"
+        llmReasoning:
+          $ref: "#/components/schemas/LLMReasoning"
+        sarDraft:
+          $ref: "#/components/schemas/SARDraft"
+      required:
+        - alertId
+        - accountId
+        - status
+        - triageFlags
+
+    Alert:
+      type: object
+      properties:
+        alertId:
+          type: string
+        accountId:
+          type: string
+        accountName:
+          type: string
+        riskScore:
+          type: number
+          minimum: 0
+          maximum: 100
+        severity:
+          type: string
+          enum: [LOW, MEDIUM, HIGH, CRITICAL]
+        flagCount:
+          type: integer
+        primaryFlag:
+          type: string
+          description: Short description of the primary flag
+        status:
+          type: string
+          enum: [PENDING, REVIEWING, CONFIRMED, DISMISSED]
+        totalAmount:
+          type: number
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - alertId
+        - accountId
+        - accountName
+        - riskScore
+        - severity
+        - flagCount
+        - primaryFlag
+        - status
+        - totalAmount
+        - createdAt
+
+    AlertListResponse:
+      type: object
+      properties:
+        alerts:
+          type: array
+          items:
+            $ref: "#/components/schemas/Alert"
+        total:
+          type: integer
+      required:
+        - alerts
+        - total
+
+    AlertDetail:
+      allOf:
+        - $ref: "#/components/schemas/Alert"
+        - type: object
+          properties:
+            triageFlags:
+              type: array
+              items:
+                $ref: "#/components/schemas/TriageFlag"
+            llmReasoning:
+              $ref: "#/components/schemas/LLMReasoning"
+            sarDraft:
+              $ref: "#/components/schemas/SARDraft"
+          required:
+            - triageFlags
+
+    GroundTruthResponse:
+      type: object
+      properties:
+        alertId:
+          type: string
+        isFraud:
+          type: boolean
+          description: Actual ground truth label from the dataset
+        aiDecision:
+          type: string
+          enum: [SUSPICIOUS, BENIGN, REVIEW_NEEDED]
+        isCorrect:
+          type: boolean
+          description: Whether the AI decision matched the ground truth
+        precision:
+          type: number
+          minimum: 0
+          maximum: 1
+          description: Precision across all evaluated alerts so far
+        recall:
+          type: number
+          minimum: 0
+          maximum: 1
+          description: Recall across all evaluated alerts so far
+        f1Score:
+          type: number
+          minimum: 0
+          maximum: 1
+        totalEvaluated:
+          type: integer
+        truePositives:
+          type: integer
+        falsePositives:
+          type: integer
+        falseNegatives:
+          type: integer
+      required:
+        - alertId
+        - isFraud
+        - aiDecision
+        - isCorrect
+        - precision
+        - recall
+        - f1Score
+        - totalEvaluated
+        - truePositives
+        - falsePositives
+        - falseNegatives
+
+    MetricsSummary:
+      type: object
+      properties:
+        totalAlerts:
+          type: integer
+        aiConfirmedRisks:
+          type: integer
+        potentialFalsePositives:
+          type: integer
+        pendingReview:
+          type: integer
+        systemStatus:
+          type: string
+          enum: [READY, PROCESSING, ERROR]
+      required:
+        - totalAlerts
+        - aiConfirmedRisks
+        - potentialFalsePositives
+        - pendingReview
+        - systemStatus
