@@ -113,11 +113,7 @@ export function Dashboard() {
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             <Database className="h-5 w-5 text-primary" />
-            <span className="text-white font-bold text-lg tracking-tight">SCHWAB AI.x</span>
-            <span className="text-white/50 font-light">—</span>
-            <span className="text-white/80 font-medium text-sm tracking-wide">
-              AML Agentic Investigator
-            </span>
+            <span className="text-white font-bold text-lg tracking-tight">AML Agentic Investigator</span>
           </div>
 
           <div className="flex items-center gap-4">
