@@ -1,6 +1,6 @@
-# Schwab AI.x — AML Agentic Investigator
+# AML Agentic Investigator
 
-A prototype demonstrating how Generative AI shifts Anti-Money Laundering operations from **rigid rule-based alerts** to **agentic risk reasoning**. Built for Schwab's AI.x team as a proof-of-concept for the Risk organization.
+A prototype demonstrating how Generative AI shifts Anti-Money Laundering operations from **rigid rule-based alerts** to **agentic risk reasoning**. Built as a proof-of-concept for financial services Risk organizations.
 
 **Live demo:** [aml-agent.replit.app](https://aml-agent.replit.app)
 
@@ -240,8 +240,8 @@ aml_agent/
 ### 1. Clone and install
 
 ```bash
-git clone https://github.com/SukhendraRompally/schwab-aml-agentic-investigator.git
-cd schwab-aml-agentic-investigator
+git clone https://github.com/SukhendraRompally/aml-agentic-investigator.git
+cd aml-agentic-investigator
 python3 -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
@@ -302,7 +302,7 @@ Point your frontend at `http://<your-server-ip>:8005`. The API is CORS-open for 
 
 | Limitation | Notes |
 |---|---|
-| PaySim is mobile money, not bank wire transfers | Structuring/layering typologies still apply but channel context differs from Schwab's actual transaction data |
+| PaySim is mobile money, not bank wire transfers | Structuring/layering typologies still apply but channel context differs from real institutional transaction data |
 | Triage rules calibrated to PaySim's fraud signature | All PaySim fraud has `newbalanceOrig == 0`; rules exploit this — real-world rules would need different calibration |
 | ~8 fraud cases missed per run (FN baseline) | Transactions that don't match any rule pattern; surfaces the need for iterative rule refinement |
 | No OFAC / PEP identity resolution | Production AML requires cross-referencing watchlists and customer KYC profiles |

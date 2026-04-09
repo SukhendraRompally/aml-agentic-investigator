@@ -33,7 +33,7 @@ def _get_client() -> AzureOpenAI:
 
 DEPLOYMENT = os.environ.get("AZURE_OPENAI_DEPLOYMENT", "gpt-4.1")
 
-INVESTIGATOR_SYSTEM = """You are a Senior Schwab AML Investigator. Analyze the following transaction metadata for patterns of 'Structuring' or 'Layering'. Do not just state if it is fraud; explain the behavioral reasoning behind your decision.
+INVESTIGATOR_SYSTEM = """You are a Senior AML Investigator. Analyze the following transaction metadata for patterns of 'Structuring' or 'Layering'. Do not just state if it is fraud; explain the behavioral reasoning behind your decision.
 
 Focus on:
 - Balance shift patterns (origin drained, destination zeroed)
@@ -53,7 +53,7 @@ Respond in this exact JSON format:
   "pattern_type": "Structuring" or "Layering" or "Account Draining" or "None"
 }}"""
 
-SAR_SYSTEM = """You are a BSA Compliance Officer at Schwab preparing a Suspicious Activity Report (SAR). Write professional, factual SAR narratives that cite specific dollar amounts and balance movements.
+SAR_SYSTEM = """You are a BSA Compliance Officer preparing a Suspicious Activity Report (SAR). Write professional, factual SAR narratives that cite specific dollar amounts and balance movements.
 
 Respond ONLY with a valid JSON object — no markdown, no explanation outside the JSON."""
 

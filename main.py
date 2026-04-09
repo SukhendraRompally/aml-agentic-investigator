@@ -1,5 +1,5 @@
 """
-FastAPI backend for the Schwab AI.x AML Agentic Investigator.
+FastAPI backend for the AML Agentic Investigator.
 Exposes a 4-step pipeline via async endpoints for the Replit frontend.
 
 Pipeline: triage → per-transaction LLM investigation + SAR draft → live cumulative validation.
@@ -49,7 +49,7 @@ async def lifespan(app: FastAPI):
     yield
 
 
-app = FastAPI(title="Schwab AI.x — AML Agentic Investigator", version="1.0.0", lifespan=lifespan)
+app = FastAPI(title="AML Agentic Investigator", version="1.0.0", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
