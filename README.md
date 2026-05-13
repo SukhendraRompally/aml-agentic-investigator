@@ -2,7 +2,7 @@
 
 A prototype demonstrating how Generative AI shifts Anti-Money Laundering operations from **rigid rule-based alerts** to **agentic risk reasoning**. Built as a proof-of-concept for financial services Risk organizations.
 
-**Live demo:** [[aml-agent.replit.app](https://aml-agent.replit.app](https://aml-agentic-investigator.vercel.app/))
+**Live demo:** https://aml-agentic-investigator.vercel.app/
 
 ---
 
