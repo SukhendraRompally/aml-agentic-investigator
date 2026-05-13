@@ -1,5 +1,5 @@
 {
   "buildCommand": "pnpm --filter @workspace/aml-dashboard build",
-  "outputDirectory": "artifacts/aml-dashboard/dist",
+  "outputDirectory": "dist",
   "installCommand": "pnpm install"
 }
