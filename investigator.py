@@ -13,25 +13,24 @@ from datetime import datetime, timezone
 
 import pandas as pd
 from dotenv import load_dotenv
-from openai import AzureOpenAI
+from openai import OpenAI
 
 load_dotenv()
 
-_client: AzureOpenAI | None = None
+_client: OpenAI | None = None
 
 
-def _get_client() -> AzureOpenAI:
+def _get_client() -> OpenAI:
     global _client
     if _client is None:
-        _client = AzureOpenAI(
-            api_key=os.environ["AZURE_OPENAI_API_KEY"],
-            azure_endpoint=os.environ["AZURE_OPENAI_ENDPOINT"],
-            api_version=os.environ.get("AZURE_OPENAI_API_VERSION", "2025-01-01-preview"),
+        _client = OpenAI(
+            api_key=os.environ["DEEPSEEK_API_KEY"],
+            base_url="https://api.deepseek.com",
         )
     return _client
 
 
-DEPLOYMENT = os.environ.get("AZURE_OPENAI_DEPLOYMENT", "gpt-4.1")
+DEPLOYMENT = os.environ.get("DEEPSEEK_MODEL", "deepseek-chat")
 
 INVESTIGATOR_SYSTEM = """You are a Senior AML Investigator. Analyze the following transaction metadata for patterns of 'Structuring' or 'Layering'. Do not just state if it is fraud; explain the behavioral reasoning behind your decision.
 
